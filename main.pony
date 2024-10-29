@@ -1,10 +1,6 @@
 use "collections"
 use "promises"
 
-primitive ChordConfig
-  fun node_bits(): USize => 6  // 2^6 = 64 possible positions
-  fun max_nodes(): USize => 1 << node_bits()
-
 class val NodeInfo
   let id: USize
   let actor_ref: Node tag
@@ -12,6 +8,11 @@ class val NodeInfo
   new val create(id': USize, ref': Node tag) =>
     id = id'
     actor_ref = ref'
+
+primitive ChordConfig
+  fun node_bits(): USize => 4  // 2^6 = 64 possible positions
+  fun max_nodes(): USize => 1 << node_bits()
+
 
 actor Node
   let _id: USize
@@ -102,18 +103,22 @@ actor Node
         _env.out.print("Looking up key " + key.string() + " in Node " + _id.string())
         // Step 1: Check if the key is equal to the current node's ID
         if key == _id then
+            _env.out.print("Found key " + key.string() + " in Node " + _id.string())
             p((NodeInfo(_id, this), hops))
 
-        // Check if the key lies in the range of [predecessor, current] then also the node contains the key
+        // Check if the key lies in the successor range
+        elseif (key > _id) and (key <= nodes(((_id + 1) % ChordConfig.max_nodes()))?.id) then
+            nodes((_id + 1) % ChordConfig.max_nodes())?.actor_ref.lookup(key, p, hops + 1, nodes)
 
         // Check if the key lies in the finger table
         else
             // Step 2: Linear search in the finger table to find the range
             var target_node: (NodeInfo | None) = None
 
-            if _finger_table.size() > 0 then
-                _env.out.print("Finger table NOT empty")
-            end
+            // Check if finger table is empty
+            // if _finger_table.size() > 0 then
+            //     _env.out.print("Finger table NOT empty")
+            // end
 
             // Find target node within finger table ranges
             for i in Range(0, _finger_table.size() - 1) do

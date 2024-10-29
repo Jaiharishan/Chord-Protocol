@@ -25,8 +25,10 @@ actor Node
     _env = env
     _successor = None
     _predecessor = None
-    _finger_table = Array[NodeInfo](ChordConfig.node_bits())
+    _finger_table = Array[NodeInfo](0)
     
+
+  // Initalize the Node and the Finger Table
   be initialize(nodes: Array[NodeInfo] val) =>
     try
       // Set immediate successor
@@ -37,37 +39,67 @@ actor Node
         end
       end
 
+      // Set the wrap around successor
       if _successor is None then
-        _successor = nodes(0)?  // Wrap around to the first node if needed
+        _successor = nodes(0)?  
       end
 
-      // Initialize finger table
-      // Each finger table has m entries, where m = ChordConfig.node_bits()
-    //   for i in Range(0, ChordConfig.node_bits()) do
-    //     let target_id = (_id + (1 << i)) % ChordConfig.max_nodes()
-    //     var found = false
+      // Creating Table with embedded binary search for closest node
+      for i in Range[USize](0, ChordConfig.node_bits()) do
+        let target_id = (_id + (1 << i)) % ChordConfig.max_nodes()
+        
+        // Inline binary search to find closest node to target_id
+        var low: USize = 0
+        var high: USize = nodes.size() - 1
+        var closest_index: USize = 69  // Sentinel for not found
 
-    //     // Find the closest preceding node greater than or equal to target_id
-    //     for node in nodes.values() do
-    //       if node.id >= target_id then
-    //         _finger_table(i)? = node  // Use partial assignment with `?`
-    //         found = true
-    //         break
-    //       end
-    //     end
+        while low <= high do
+            let mid = (low + high) / 2
+            if nodes(mid)?.id == target_id then
+                closest_index = mid
+                break
+            elseif nodes(mid)?.id < target_id then                        
+                low = mid + 1
+                closest_index = mid  // Closest found so far
+            else
+                high = mid - 1
+            end
+        end 
 
-    //     // If not found then the first node is the closest preceding due to circlular topology
-    //     if not found then
-    //       _finger_table(i)? = nodes(0)?  // Use partial assignment with `?`
-    //     end
-    //   end
+        // _env.out.print("For Node " + _id.string() + " Finger Table " + i.string() + ":" + nodes(closest_index)?.id.string())
+
+        // if the nodes(index) equals the current element then push the successor
+        if nodes(closest_index)?.id == _id then
+            _finger_table.push(nodes(_id + 1)?)  // Use partial assignment with `?`
+            continue
+        end
+
+        // Assign the closest node found or wrap around to the first node
+        if closest_index != 69 then
+                // _env.out.print("For Node" + _id.string() + "Found Node: " + nodes(closest_index)?.id.string())
+                _finger_table.push(nodes(closest_index)?)  // Use partial assignment with `?`
+        else
+            // _env.out.print("For Node" + _id.string() + "Wrap around to: " + nodes(0)?.id.string())
+            _finger_table.push(nodes(0)?)  // Wrap around if no closer node is found
+        end 
+      end 
+
+    // Output finger table
+      for (i, node) in _finger_table.pairs() do
+        _env.out.print("For Node " + _id.string() + "  |  " + i.string() + ": " + node.id.string())
+      end
+
+      _env.out.print("Finger Table Created for Node" + _id.string())
+
+    else
+      _env.out.print("Failed to initialize Node " + _id.string())
     end
 
 // Lookup algorithm to find the node that contains the key
 // This is an recursive algorithm that searches the network for the node that contains the key
-
   be lookup(key: USize, p: Promise[(NodeInfo, USize)], hops: USize = 0, nodes: Array[NodeInfo] val) =>
     try 
+        _env.out.print("Looking up key " + key.string() + " in Node " + _id.string())
         // Step 1: Check if the key is equal to the current node's ID
         if key == _id then
             p((NodeInfo(_id, this), hops))
@@ -78,46 +110,6 @@ actor Node
         else
             // Step 2: Linear search in the finger table to find the range
             var target_node: (NodeInfo | None) = None
-
-            _env.out.print("Creating Finger Table for Node" + _id.string())
-
-            // Creating Table with embedded binary search for closest node
-            for i in Range(0, ChordConfig.node_bits()) do
-                let target_id = (_id + (1 << i)) % ChordConfig.max_nodes()
-                _env.out.print("    " + i.string() + ": " + target_id.string())
-
-                // Inline binary search to find closest node to `target_id`
-                var low: USize = 0
-                var high: USize = nodes.size() - 1
-                var closest_index: USize = 69  // Sentinel for not found
-
-                while low <= high do
-                    let mid = (low + high) / 2
-                    if nodes(mid)?.id == target_id then
-                        closest_index = mid
-                        break
-                    elseif nodes(mid)?.id < target_id then
-                        low = mid + 1
-                        closest_index = mid  // Closest found so far
-                    else
-                        high = mid - 1
-                    end
-                end
-
-                // Assign the closest node found or wrap around to the first node
-                if closest_index != 69 then
-                    _finger_table(i)? = nodes(closest_index)?  // Use partial assignment with `?`
-                else
-                    _finger_table(i)? = nodes(0)?  // Wrap around if no closer node is found
-                end
-            end
-
-            // Output finger table
-            for (i, node) in _finger_table.pairs() do
-                _env.out.print("    " + i.string() + ": " + node.id.string())
-            end
-
-            _env.out.print("Finger Table Created for Node" + _id.string())
 
             if _finger_table.size() > 0 then
                 _env.out.print("Finger table NOT empty")
@@ -171,21 +163,6 @@ actor Node
       (id > start) or (id <= finish)
     end
 
-  // Print the state of the node
-  be print_state() =>
-    _env.out.print("Node " + _id.string())
-    
-    match _successor
-    | let s: NodeInfo =>
-      _env.out.print("  Successor: " + s.id.string())
-    else
-      _env.out.print("  No successor")
-    end
-    
-    _env.out.print("  Finger table:")
-    for (i, node) in _finger_table.pairs() do
-      _env.out.print("    " + i.string() + ": " + node.id.string())
-    end
 
 
 // Main Actor
@@ -224,10 +201,14 @@ actor Main
           let node = Node(env, id)
           actors.push(node)
           arr.push(NodeInfo(id, node))
-          env.out.print("Node " + id.string() + " created")
+        //   env.out.print("Node " + id.string() + " created")
         end
         arr
       end
+
+    //   for node in nodes.values() do
+    //     env.out.print("Node " + node.id.string() + " created")
+    //   end
       
       // Initialize nodes
       for node in actors.values() do
@@ -235,7 +216,6 @@ actor Main
       end
 
       // Perform lookup
-      // 
       let p = Promise[(NodeInfo, USize)]
 
       if actors.size() > 0 then
@@ -250,7 +230,7 @@ actor Main
             _env.out.print("Key " + key.string() + " is handled by node " + info.id.string())
             _env.out.print("Total hops taken: " + hops.string())
           fun ref dispose() => None
-        end
+      end
         
         p.next[None](consume notify)
       end

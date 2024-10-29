@@ -69,10 +69,10 @@ actor Node
         // _env.out.print("For Node " + _id.string() + " Finger Table " + i.string() + ":" + nodes(closest_index)?.id.string())
 
         // if the nodes(index) equals the current element then push the successor
-        if nodes(closest_index)?.id == _id then
-            _finger_table.push(nodes(_id + 1)?)  // Use partial assignment with `?`
-            continue
-        end
+        // if nodes(closest_index)?.id == _id then
+        //     _finger_table.push(nodes((_id + 1) % ChordConfig.max_nodes())?)  // Use partial assignment with `?`
+        //     continue
+        // end
 
         // Assign the closest node found or wrap around to the first node
         if closest_index != 69 then
@@ -206,9 +206,9 @@ actor Main
         arr
       end
 
-    //   for node in nodes.values() do
-    //     env.out.print("Node " + node.id.string() + " created")
-    //   end
+      for node in nodes.values() do
+        env.out.print("Node " + node.id.string() + " created")
+      end
       
       // Initialize nodes
       for node in actors.values() do
